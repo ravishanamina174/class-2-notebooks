@@ -7,6 +7,13 @@ support for batch processing many transcripts at once.
 
 import os
 from typing import List, Dict
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from langchain_core.prompts import ChatPromptTemplate  # ✅ added import
+from langchain_openai import ChatOpenAI  # ✅ added import
+from langchain_core.output_parsers import StrOutputParser  # ✅ added import
 
 
 class MinutesBatcher:
@@ -30,18 +37,23 @@ class MinutesBatcher:
             "Return sections: MINUTES (3-5 bullets), ACTIONS (bullets with owner;date)."
         )
         # TODO: Build ChatPromptTemplate and store as self.prompt
-        self.prompt = None
+        self.prompt = ChatPromptTemplate.from_messages([
+            ("system", self.system_prompt),
+            ("user", self.user_prompt),
+        ])
         # TODO: Create a low-temperature ChatOpenAI and store as self.llm
-        self.llm = None
+        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
         # TODO: Build a chain `self.chain` with StrOutputParser
-        self.chain = None
+        self.chain = self.prompt | self.llm | StrOutputParser()
 
     def summarize_one(self, title: str, transcript: str) -> str:
         """Return minutes+actions for a single transcript.
 
         Implement using the prepared chain and `{title, transcript}` inputs.
         """
-        raise NotImplementedError("Wire the chain and invoke for a single transcript.")
+        # Invoke chain for single transcript
+        result = self.chain.invoke({"title": title, "transcript": transcript})
+        return result
 
     def summarize_batch(self, items: List[Dict[str, str]]) -> List[str]:
         """Return minutes+actions for a batch of transcripts.
@@ -49,7 +61,13 @@ class MinutesBatcher:
         Implement: use `.batch()` on the chain with a list of input dicts.
         Preserve order of inputs in the returned results.
         """
-        raise NotImplementedError("Use chain.batch for parallel processing.")
+        # Prepare inputs for batch API
+        inputs = [
+            {"title": item["title"], "transcript": item["transcript"]}
+            for item in items
+        ]
+        results = self.chain.batch(inputs)
+        return results
 
 
 def _demo():
@@ -57,7 +75,7 @@ def _demo():
         print("⚠️ Set OPENAI_API_KEY before running.")
     mb = MinutesBatcher()
     try:
-        print("\n📝 Minutes & Actions — demo\n" + "-" * 40)
+        print("\n Minutes & Actions — demo\n" + "-" * 40)
         print(
             mb.summarize_one(
                 "Sprint Planning",

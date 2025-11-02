@@ -12,15 +12,17 @@ from typing import Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class TransitExplainer:
     def __init__(self):
         # TODO: Create two LLMs: "calm" (low temperature) and "creative" (higher temperature/top_p)
         # self.calm_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
         # self.creative_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.8)
-        self.calm_llm = None
-        self.creative_llm = None
+        self.calm_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+        self.creative_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.8, top_p=0.95)
 
         # TODO: Build a role-aware prompt with {line_name} and {status_text}
         system_prompt = (
@@ -29,19 +31,23 @@ class TransitExplainer:
             "should do now. Keep it friendly and clear."
         )
         user_prompt = "Line: {line_name}\nStatus: {status_text}\nReturn only 2 bullets."
+        
         # TODO: Create ChatPromptTemplate using the above strings
         # Example (fill in):
         # self.prompt = ChatPromptTemplate.from_messages([
         #     ("system", system_prompt),
         #     ("user", user_prompt),
         # ])
-        self.prompt = None
+        self.prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("user", user_prompt),
+        ])
 
         # TODO: Create two chains with StrOutputParser
         # self.calm_chain = self.prompt | self.calm_llm | StrOutputParser()
         # self.creative_chain = self.prompt | self.creative_llm | StrOutputParser()
-        self.calm_chain = None
-        self.creative_chain = None
+        self.calm_chain = self.prompt | self.calm_llm | StrOutputParser()
+        self.creative_chain = self.prompt | self.creative_llm | StrOutputParser()
 
     def explain(self, line_name: str, status_text: str) -> str:
         """
@@ -51,9 +57,9 @@ class TransitExplainer:
         # calm = self.calm_chain.invoke({"line_name": line_name, "status_text": status_text})
         # _ = self.creative_chain.invoke({"line_name": line_name, "status_text": status_text})
         # return calm
-        raise NotImplementedError(
-            "Build prompt, chains, invoke both, return calm result."
-        )
+        calm = self.calm_chain.invoke({"line_name": line_name, "status_text": status_text})
+        _ = self.creative_chain.invoke({"line_name": line_name, "status_text": status_text})  # just to compare tone in background
+        return calm
 
 
 def _demo():
@@ -67,7 +73,7 @@ def _demo():
             "Unplanned track inspection between A and B, single-tracking in effect.",
         ),
     ]
-    print("\n🚌 Transit Delay Explainer — demo\n" + "-" * 48)
+    print("\n Transit Delay Explainer — demo\n" + "-" * 48)
     for line, status in samples:
         print(f"\nLine: {line}\nStatus: {status}")
         print(explainer.explain(line, status))

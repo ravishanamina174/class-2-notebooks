@@ -7,16 +7,34 @@ encouraging guidance token-by-token via a callback.
 
 import os
 from typing import Any
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from langchain_openai import ChatOpenAI  # ✅ required
+from langchain_core.prompts import ChatPromptTemplate  # ✅ required
+from langchain_core.output_parsers import StrOutputParser  # ✅ required
 
 
 class PrintTokens:
-    """Minimal callback-like interface for printing tokens.
+    """Minimal callback-compatible token printer."""
 
-    Implement compatibility with LangChain callback protocol if desired.
-    """
+    # required attrs
+    ignore_chain = False
+    ignore_llm = False
+    ignore_retry = False
+    ignore_other = False
+    ignore_chat_model = False
+    raise_error = False
 
     def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         print(token, end="")
+
+    # add no-op handlers to silence warnings
+    def on_chain_start(self, *args, **kwargs): pass
+    def on_chain_end(self, *args, **kwargs): pass
+    def on_llm_end(self, *args, **kwargs): pass
+    def on_chat_model_start(self, *args, **kwargs): pass
 
 
 class MicroCoach:
@@ -35,12 +53,22 @@ class MicroCoach:
         self.user_prompt = "Goal: {goal}\nTime: {time_available}\nReturn a 3-step plan."
 
         # TODO: Build prompts and LLMs (streaming and non-streaming)
-        self.llm_streaming = None
-        self.llm_plain = None
-        self.stream_prompt = None
-        self.plain_prompt = None
-        self.stream_chain = None
-        self.plain_chain = None
+        self.llm_streaming = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0.5,
+            streaming=True,
+        )
+        self.llm_plain = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0.4,
+        )
+        self.stream_prompt = ChatPromptTemplate.from_messages([
+            ("system", self.system_prompt),
+            ("user", self.user_prompt),
+        ])
+        self.plain_prompt = self.stream_prompt
+        self.stream_chain = self.stream_prompt | self.llm_streaming | StrOutputParser()
+        self.plain_chain = self.plain_prompt | self.llm_plain | StrOutputParser()
 
     def coach(self, goal: str, time_available: str, stream: bool = False) -> str:
         """Return guidance using streaming or non-streaming path.
@@ -49,7 +77,16 @@ class MicroCoach:
         - If `stream=True`, attach a token printer callback and stream output.
         - Else, return a compact non-streamed plan string.
         """
-        raise NotImplementedError("Implement streaming vs non-streaming coaching.")
+        if stream:
+            printer = PrintTokens()
+            chain = self.stream_chain.with_config(callbacks=[printer])
+            _ = chain.invoke({"goal": goal, "time_available": time_available})
+            return ""
+        else:
+            result = self.plain_chain.invoke(
+                {"goal": goal, "time_available": time_available}
+            )
+            return result
 
 
 def _demo():

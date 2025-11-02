@@ -7,7 +7,10 @@ verbosity and directness by `difficulty`.
 
 import os
 from typing import List
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+
+load_dotenv()
 
 
 class Hint(BaseModel):
@@ -57,7 +60,7 @@ def _demo():
         print("⚠️ Set OPENAI_API_KEY before running.")
     engine = PuzzleHintEngine()
     try:
-        print("\n🧩 Puzzle Hint Engine — demo\n" + "-" * 40)
+        print("\n Puzzle Hint Engine — demo\n" + "-" * 40)
         hints = engine.get_hints(
             "I speak without a mouth and hear without ears.",
             attempt="Is it wind?",
